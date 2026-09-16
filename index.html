@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#0d1017">
+<meta name="mobile-web-app-capable" content="yes">
+<link rel="manifest" href="./manifest.json">
+<title>Symmetry Drawing</title>
+<style>
+*{box-sizing:border-box;touch-action:none}
+body{margin:0;background:#0d1017;color:white;font-family:Arial,sans-serif;min-height:100vh;overflow:hidden}
+.title{text-align:center;margin-top:45px;font-size:21px}
+.controls{position:fixed;top:15px;right:15px;display:flex;gap:6px;z-index:10}
+button{border:1px solid #555;background:#202632;color:white;padding:9px 13px;border-radius:8px;font-size:15px;cursor:pointer}
+button.active{background:#00a8c6;border-color:#00d9ff}
+.game-container{width:100vw;height:calc(100vh - 70px);display:flex;align-items:center;justify-content:center}
+canvas{background:#151a23;border:2px solid #555;border-radius:50%;box-shadow:0 0 25px rgba(0,0,0,.8),inset 0 0 20px rgba(0,0,0,.5)}
+</style>
+</head>
+<body>
+<div class="title">✦ Draw inside the circle ✦</div>
+<div class="controls">
+<button onclick="setPieces(8)" id="btn8" class="active">8</button>
+<button onclick="setPieces(4)" id="btn4">4</button>
+<button onclick="setPieces(2)" id="btn2">2</button>
+</div>
+<div class="game-container"><canvas id="game"></canvas></div>
+<script>
+const canvas=document.getElementById("game"),ctx=canvas.getContext("2d");
+let size,cx=0,cy=0,radius=0,pieces=8,strokes=[],drawing=false,lastPoint=null;
+function resizeCanvas(){size=Math.min(innerWidth-25,innerHeight-100);canvas.width=size;canvas.height=size;cx=size/2;cy=size/2;radius=size*.46}
+function setPieces(n){pieces=n;document.querySelectorAll("button").forEach(b=>b.classList.remove("active"));document.getElementById("btn"+n).classList.add("active")}
+function getPoint(e){const r=canvas.getBoundingClientRect();return{x:e.clientX-r.left-cx,y:e.clientY-r.top-cy}}
+canvas.addEventListener("pointerdown",e=>{drawing=true;const p=getPoint(e);lastPoint=p;strokes.push({x:p.x,y:p.y,age:0});canvas.setPointerCapture?.(e.pointerId)});
+canvas.addEventListener("pointermove",e=>{if(!drawing)return;const p=getPoint(e);if(lastPoint){const dx=p.x-lastPoint.x,dy=p.y-lastPoint.y;if(Math.hypot(dx,dy)>1)strokes.push({x:p.x,y:p.y,age:0})}lastPoint=p});
+function stopDrawing(){drawing=false;lastPoint=null}
+canvas.addEventListener("pointerup",stopDrawing);canvas.addEventListener("pointercancel",stopDrawing);
+function rotatePoint(x,y,a){return{x:x*Math.cos(a)-y*Math.sin(a),y:x*Math.sin(a)+y*Math.cos(a)}}
+function animate(){
+ctx.clearRect(0,0,size,size);
+ctx.beginPath();ctx.arc(cx,cy,radius,0,Math.PI*2);ctx.strokeStyle="#555";ctx.lineWidth=2;ctx.stroke();
+const slice=Math.PI*2/pieces;
+for(let i=0;i<pieces;i++){const a=i*slice;ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(cx+Math.cos(a)*radius,cy+Math.sin(a)*radius);ctx.strokeStyle="#363c48";ctx.lineWidth=1;ctx.stroke()}
+for(let j=strokes.length-1;j>=0;j--){let s=strokes[j];s.age+=.009;if(s.age>=1){strokes.splice(j,1);continue}const f=1-s.age,x=s.x*f,y=s.y*f,alpha=1-Math.pow(s.age,1.5);for(let i=0;i<pieces;i++){const p=rotatePoint(x,y,i*slice);ctx.beginPath();ctx.arc(cx+p.x,cy+p.y,3.2,0,Math.PI*2);ctx.fillStyle=`rgba(0,220,255,${alpha})`;ctx.fill()}}
+ctx.beginPath();ctx.arc(cx,cy,4,0,Math.PI*2);ctx.fillStyle="white";ctx.fill();requestAnimationFrame(animate)}
+addEventListener("resize",resizeCanvas);resizeCanvas();animate();
+if("serviceWorker" in navigator)navigator.serviceWorker.register("./service-worker.js");
+</script>
+</body>
+</html>
