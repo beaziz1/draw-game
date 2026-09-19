@@ -2,50 +2,294 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
-<meta name="theme-color" content="#0d1017">
-<meta name="mobile-web-app-capable" content="yes">
-<link rel="manifest" href="./manifest.json">
-<title>Symmetry Drawing</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#11151d">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+
+<title>Draw</title>
+
 <style>
-*{box-sizing:border-box;touch-action:none}
-body{margin:0;background:#0d1017;color:white;font-family:Arial,sans-serif;min-height:100vh;overflow:hidden}
-.title{text-align:center;margin-top:45px;font-size:21px}
-.controls{position:fixed;top:15px;right:15px;display:flex;gap:6px;z-index:10}
-button{border:1px solid #555;background:#202632;color:white;padding:9px 13px;border-radius:8px;font-size:15px;cursor:pointer}
-button.active{background:#00a8c6;border-color:#00d9ff}
-.game-container{width:100vw;height:calc(100vh - 70px);display:flex;align-items:center;justify-content:center}
-canvas{background:#151a23;border:2px solid #555;border-radius:50%;box-shadow:0 0 25px rgba(0,0,0,.8),inset 0 0 20px rgba(0,0,0,.5)}
+* { box-sizing: border-box; touch-action: none; }
+body { margin: 0; background: #0d1017; color: white; font-family: Arial, sans-serif; overflow: hidden; }
+.topbar { position: fixed; top: 0; left: 0; width: 100%; height: 65px; display: flex; align-items: center; justify-content: space-between; padding: 0 15px; background: #11151d; z-index: 20; }
+.title { font-size: 21px; font-weight: bold; }
+.controls { display: flex; align-items: center; gap: 6px; }
+button { border: 1px solid #444b58; background: #202632; color: white; padding: 8px 11px; border-radius: 8px; font-size: 14px; cursor: pointer; }
+button.active { background: #009db8; border-color: #00d9ff; }
+.color-button { width: 38px; height: 38px; padding: 0; border-radius: 50%; border: 3px solid white; background: #00dcff; }
+.color-panel { position: fixed; top: 70px; right: 15px; width: 230px; padding: 12px; background: #1a202b; border: 1px solid #414957; border-radius: 12px; display: none; z-index: 30; box-shadow: 0 8px 30px rgba(0,0,0,.7); }
+.color-square { position: relative; width: 100%; height: 160px; border-radius: 8px; overflow: hidden; background: linear-gradient(to top,#000,transparent),linear-gradient(to right,#fff,hsl(0,100%,50%)); }
+.hue-bar { width: 100%; height: 22px; margin-top: 12px; border-radius: 8px; background: linear-gradient(to right,red,yellow,lime,cyan,blue,magenta,red); position: relative; }
+.color-pointer { position: absolute; width: 14px; height: 14px; border: 2px solid white; border-radius: 50%; transform: translate(-50%,-50%); pointer-events: none; box-shadow: 0 0 3px black; }
+.hue-pointer { position: absolute; top: 50%; width: 5px; height: 28px; background: white; border-radius: 3px; transform: translate(-50%,-50%); pointer-events: none; box-shadow: 0 0 4px black; }
+.current-color { width: 100%; height: 25px; margin-top: 12px; border-radius: 6px; border: 1px solid #555; }
+#rainbowButton.active { background: linear-gradient(90deg,red,orange,yellow,lime,cyan,blue,violet); border-color: white; }
+canvas { position: fixed; top: 65px; left: 0; width: 100vw; height: calc(100vh - 65px); background: #151a23; display: block; }
 </style>
 </head>
+
 <body>
-<div class="title">✦ Draw inside the circle ✦</div>
-<div class="controls">
-<button onclick="setPieces(8)" id="btn8" class="active">8</button>
-<button onclick="setPieces(4)" id="btn4">4</button>
-<button onclick="setPieces(2)" id="btn2">2</button>
+<div class="topbar">
+    <div class="title">Draw</div>
+    <div class="controls">
+        <button id="colorButton" class="color-button"></button>
+        <button id="btn4" class="active" onclick="setPieces(4)">4</button>
+        <button id="btn8" onclick="setPieces(8)">8</button>
+        <button id="rainbowButton" onclick="toggleRainbow()">🌈</button>
+        <button id="pauseButton" onclick="togglePause()">⏸</button>
+    </div>
 </div>
-<div class="game-container"><canvas id="game"></canvas></div>
+
+<div id="colorPanel" class="color-panel">
+    <div id="colorSquare" class="color-square">
+        <div id="colorPointer" class="color-pointer"></div>
+    </div>
+    <div id="hueBar" class="hue-bar">
+        <div id="huePointer" class="hue-pointer"></div>
+    </div>
+    <div id="currentColor" class="current-color"></div>
+</div>
+
+<canvas id="game"></canvas>
+
 <script>
-const canvas=document.getElementById("game"),ctx=canvas.getContext("2d");
-let size,cx=0,cy=0,radius=0,pieces=8,strokes=[],drawing=false,lastPoint=null;
-function resizeCanvas(){size=Math.min(innerWidth-25,innerHeight-100);canvas.width=size;canvas.height=size;cx=size/2;cy=size/2;radius=size*.46}
-function setPieces(n){pieces=n;document.querySelectorAll("button").forEach(b=>b.classList.remove("active"));document.getElementById("btn"+n).classList.add("active")}
-function getPoint(e){const r=canvas.getBoundingClientRect();return{x:e.clientX-r.left-cx,y:e.clientY-r.top-cy}}
-canvas.addEventListener("pointerdown",e=>{drawing=true;const p=getPoint(e);lastPoint=p;strokes.push({x:p.x,y:p.y,age:0});canvas.setPointerCapture?.(e.pointerId)});
-canvas.addEventListener("pointermove",e=>{if(!drawing)return;const p=getPoint(e);if(lastPoint){const dx=p.x-lastPoint.x,dy=p.y-lastPoint.y;if(Math.hypot(dx,dy)>1)strokes.push({x:p.x,y:p.y,age:0})}lastPoint=p});
-function stopDrawing(){drawing=false;lastPoint=null}
-canvas.addEventListener("pointerup",stopDrawing);canvas.addEventListener("pointercancel",stopDrawing);
-function rotatePoint(x,y,a){return{x:x*Math.cos(a)-y*Math.sin(a),y:x*Math.sin(a)+y*Math.cos(a)}}
-function animate(){
-ctx.clearRect(0,0,size,size);
-ctx.beginPath();ctx.arc(cx,cy,radius,0,Math.PI*2);ctx.strokeStyle="#555";ctx.lineWidth=2;ctx.stroke();
-const slice=Math.PI*2/pieces;
-for(let i=0;i<pieces;i++){const a=i*slice;ctx.beginPath();ctx.moveTo(cx,cy);ctx.lineTo(cx+Math.cos(a)*radius,cy+Math.sin(a)*radius);ctx.strokeStyle="#363c48";ctx.lineWidth=1;ctx.stroke()}
-for(let j=strokes.length-1;j>=0;j--){let s=strokes[j];s.age+=.009;if(s.age>=1){strokes.splice(j,1);continue}const f=1-s.age,x=s.x*f,y=s.y*f,alpha=1-Math.pow(s.age,1.5);for(let i=0;i<pieces;i++){const p=rotatePoint(x,y,i*slice);ctx.beginPath();ctx.arc(cx+p.x,cy+p.y,3.2,0,Math.PI*2);ctx.fillStyle=`rgba(0,220,255,${alpha})`;ctx.fill()}}
-ctx.beginPath();ctx.arc(cx,cy,4,0,Math.PI*2);ctx.fillStyle="white";ctx.fill();requestAnimationFrame(animate)}
-addEventListener("resize",resizeCanvas);resizeCanvas();animate();
-if("serviceWorker" in navigator)navigator.serviceWorker.register("./service-worker.js");
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+let width, height;
+let pieces = 4;
+
+let hue = 190;
+let saturation = 100;
+let lightness = 50;
+let currentColor = `hsl(${hue},100%,50%)`;
+
+let rainbowMode = false;
+let rainbowHue = 0;
+let paused = false;
+const attractionSpeed = 0.009;
+
+let drawing = false;
+let lastPoint = null;
+let strokes = [];
+
+function resizeCanvas() {
+    width = window.innerWidth;
+    height = window.innerHeight - 65;
+    canvas.width = width;
+    canvas.height = height;
+}
+resizeCanvas();
+window.addEventListener("resize", resizeCanvas);
+
+function setPieces(number) {
+    pieces = number;
+    document.getElementById("btn4").classList.remove("active");
+    document.getElementById("btn8").classList.remove("active");
+    document.getElementById("btn" + number).classList.add("active");
+}
+
+function togglePause() {
+    paused = !paused;
+    document.getElementById("pauseButton").textContent = paused ? "▶" : "⏸";
+}
+
+function toggleRainbow() {
+    rainbowMode = !rainbowMode;
+    document.getElementById("rainbowButton").classList.toggle("active", rainbowMode);
+}
+
+const colorButton = document.getElementById("colorButton");
+const colorPanel = document.getElementById("colorPanel");
+
+colorButton.addEventListener("click", function(e) {
+    e.stopPropagation();
+    colorPanel.style.display = colorPanel.style.display === "block" ? "none" : "block";
+});
+
+function updateColor() {
+    currentColor = `hsl(${hue},${saturation}%,${lightness}%)`;
+    colorButton.style.background = currentColor;
+    document.getElementById("currentColor").style.background = currentColor;
+}
+updateColor();
+
+const colorSquare = document.getElementById("colorSquare");
+const colorPointer = document.getElementById("colorPointer");
+
+function chooseColorSquare(e) {
+    const rect = colorSquare.getBoundingClientRect();
+    let x = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+    let y = Math.max(0, Math.min(rect.height, e.clientY - rect.top));
+
+    saturation = (x / rect.width) * 100;
+    lightness = 50 - ((y / rect.height) * 50);
+
+    colorPointer.style.left = x + "px";
+    colorPointer.style.top = y + "px";
+
+    colorSquare.style.background = `
+        linear-gradient(to top,#000,transparent),
+        linear-gradient(to right,#fff,hsl(${hue},100%,50%))
+    `;
+    updateColor();
+}
+
+colorSquare.addEventListener("pointerdown", chooseColorSquare);
+colorSquare.addEventListener("pointermove", e => { if (e.buttons) chooseColorSquare(e); });
+
+const hueBar = document.getElementById("hueBar");
+const huePointer = document.getElementById("huePointer");
+
+function chooseHue(e) {
+    const rect = hueBar.getBoundingClientRect();
+    let x = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+
+    hue = (x / rect.width) * 360;
+    huePointer.style.left = x + "px";
+
+    colorSquare.style.background = `
+        linear-gradient(to top,#000,transparent),
+        linear-gradient(to right,#fff,hsl(${hue},100%,50%))
+    `;
+    updateColor();
+}
+
+hueBar.addEventListener("pointerdown", chooseHue);
+hueBar.addEventListener("pointermove", e => { if (e.buttons) chooseHue(e); });
+
+document.addEventListener("pointerdown", function(e) {
+    if (!colorPanel.contains(e.target) && e.target !== colorButton) {
+        colorPanel.style.display = "none";
+    }
+});
+
+function getPoint(e) {
+    const rect = canvas.getBoundingClientRect();
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+}
+
+function distance(a, b) {
+    const dx = a.x - b.x;
+    const dy = a.y - b.y;
+    return Math.sqrt(dx * dx + dy * dy);
+}
+
+function getDrawingColor() {
+    if (rainbowMode) {
+        rainbowHue += 2;
+        if (rainbowHue >= 360) rainbowHue = 0;
+        return `hsl(${rainbowHue},100%,50%)`;
+    }
+    return currentColor;
+}
+
+function addPoint(point) {
+    if (!lastPoint) {
+        lastPoint = point;
+        return;
+    }
+
+    const dist = distance(point, lastPoint);
+    const spacing = 2;
+    const steps = Math.max(1, Math.ceil(dist / spacing));
+
+    for (let i = 1; i <= steps; i++) {
+        const t = i / steps;
+        const x = lastPoint.x + (point.x - lastPoint.x) * t;
+        const y = lastPoint.y + (point.y - lastPoint.y) * t;
+
+        strokes.push({ x, y, age: 0, color: getDrawingColor() });
+    }
+    lastPoint = point;
+}
+
+canvas.addEventListener("pointerdown", function(e) {
+    drawing = true;
+    const point = getPoint(e);
+    lastPoint = point;
+
+    strokes.push({
+        x: point.x,
+        y: point.y,
+        age: 0,
+        color: getDrawingColor()
+    });
+});
+
+canvas.addEventListener("pointermove", function(e) {
+    if (!drawing) return;
+    addPoint(getPoint(e));
+});
+
+function stopDrawing() {
+    drawing = false;
+    lastPoint = null;
+}
+
+canvas.addEventListener("pointerup", stopDrawing);
+canvas.addEventListener("pointercancel", stopDrawing);
+
+function rotatePoint(x, y, angle) {
+    return {
+        x: x * Math.cos(angle) - y * Math.sin(angle),
+        y: x * Math.sin(angle) + y * Math.cos(angle)
+    };
+}
+
+function applyAlpha(color, alpha) {
+    return color.replace("hsl(", "hsla(").replace(")", `,${alpha})`);
+}
+
+function drawStrokes() {
+    const slice = Math.PI * 2 / pieces;
+
+    for (let i = strokes.length - 1; i >= 0; i--) {
+        const s = strokes[i];
+
+        if (!paused) s.age += attractionSpeed;
+
+        if (s.age >= 1) {
+            strokes.splice(i, 1);
+            continue;
+        }
+
+        const factor = 1 - s.age;
+        const relativeX = s.x - width / 2;
+        const relativeY = s.y - height / 2;
+        const x = relativeX * factor;
+        const y = relativeY * factor;
+        const alpha = Math.max(0, 1 - s.age * 1.15);
+
+        for (let p = 0; p < pieces; p++) {
+            const rotated = rotatePoint(x, y, p * slice);
+            const finalX = width / 2 + rotated.x;
+            const finalY = height / 2 + rotated.y;
+
+            ctx.beginPath();
+            ctx.arc(finalX, finalY, 3, 0, Math.PI * 2);
+            ctx.fillStyle = applyAlpha(s.color, alpha);
+            ctx.fill();
+        }
+    }
+}
+
+function animate() {
+    ctx.clearRect(0, 0, width, height);
+    drawStrokes();
+    requestAnimationFrame(animate);
+}
+animate();
+
+/* PWA */
+if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+        navigator.serviceWorker.register("./service-worker.js")
+            .catch(error => console.error("Service worker error:", error));
+    });
+}
 </script>
 </body>
 </html>
